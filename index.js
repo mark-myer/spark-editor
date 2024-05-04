@@ -36,11 +36,40 @@ const TinyMCE = {
 
     return [
       {
+        name: "customToolBar",
+        label: "Use custom Toolbar config?",
+        required: true,
+        type: "Bool",
+        default: false,
+      },
+      {
+        name: "toolbarConfig",
+        label: "Toolbar Config",
+        required: true,
+        type: "String",
+        showIf: { customToolBar: true },
+      },
+      {
+        name: "customPlugins",
+        label: "Use custom plugin config?",
+        required: true,
+        type: "Bool",
+        default: false,
+      },
+      {
+        name: "pluginConfig",
+        label: "Plugin Config",
+        required: true,
+        type: "String",
+        showIf: { customPlugins: true }
+      },
+      {
         name: "toolbar",
         label: "Toolbar",
         required: true,
         type: "String",
         attributes: { options: ["Standard", "Reduced", "Full"] },
+        showIf: { customToolBar: false }
       },
       {
         name: "quickbar",
@@ -100,7 +129,9 @@ const TinyMCE = {
   },
   run: (nm, v, attrs, cls) => {
     const rndcls = `tmce${Math.floor(Math.random() * 16777215).toString(16)}`;
-
+    const pConfig =  `['link', 'fullscreen', 'charmap', 'table', 'lists', 'searchreplace', 'image',${
+      attrs?.autogrow ? `'autoresize',` : ""
+    }${attrs?.quickbar ? `'quickbars',` : ""}],`
     return div(
       {
         class: [cls],
@@ -121,19 +152,25 @@ const TinyMCE = {
         $('textarea#input${text(nm)}_${rndcls}').html(tinymce.get("input${text(
           nm
         )}_${rndcls}").getContent()).closest('form').trigger('change');
-      }            
+      }
+      const imagelinks = [];
+      const fetchLinkList = () => {return imagelinks}             
       const ed = await tinymce.init({
         selector: '.${rndcls}',
         promotion: false,
-        plugins: ['link', 'fullscreen', 'charmap', 'table', 'lists', 'searchreplace',${
-          attrs?.autogrow ? `'autoresize',` : ""
-        }${attrs?.quickbar ? `'quickbars',` : ""}],
+        plugins: ${attrs?.customPlugins ? attrs.pluginConfig : pConfig}
         statusbar: ${!!attrs?.statusbar},        
         menubar: ${!!attrs?.menubar},
         skin: "tinymce-5",
+        link_list: (success) => { // called on link dialog open
+          const links = fetchLinkList(); // get link_list data
+          success(links); // pass link_list data to {productname}
+        },
         toolbar: '${
+          attrs?.customToolBar === true 
+          ? attrs.toolbarConfig :
           attrs?.toolbar === "Reduced"
-            ? "undo redo | bold italic underline strikethrough | removeformat | link hr | bullist numlist | outdent indent | blockquote "
+            ? "undo redo | bold italic underline strikethrough | removeformat | link hr | bullist numlist | outdent indent | blockquote | image"
             : attrs?.toolbar === "Full"
             ? "undo redo | bold italic underline strikethrough | forecolor backcolor | removeformat | link | cut copy paste pastetext | searchreplace | table hr charmap | bullist numlist | alignnone alignleft aligncenter alignright alignjustify | outdent indent | blockquote | styles fontfamily fontsize fontsizeinput | fullscreen"
             : "undo redo | bold italic underline strikethrough | forecolor backcolor | removeformat | link  | searchreplace | table hr charmap | bullist numlist | align | outdent indent | blockquote | fullscreen"
@@ -161,6 +198,7 @@ const TinyMCE = {
                 processData: false,
                 contentType: false,
                 success: function (res) {
+                  imagelinks.push({ title: blobInfo.filename(), value: res.success.url });
                   resolve(res.success.url)
                 },
                 error: function (request) {
